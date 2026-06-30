@@ -5,52 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scan Barcode SKU</title>
     <link rel="stylesheet" href="style.css">
-    <style>
-        body {
-            margin: 0;
-            background: #0f172a;
-            color: #e2e8f0;
-            font-family: Arial, sans-serif;
-        }
-        .page-shell {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            box-sizing: border-box;
-        }
-        .scan-card {
-            width: min(100%, 480px);
-            background: #111827;
-            border-radius: 18px;
-            padding: 20px;
-            box-shadow: 0 16px 40px rgba(0,0,0,0.25);
-        }
-        .reader-frame {
-            width: 100%;
-            min-height: 320px;
-            height: min(60vh, 420px);
-            margin-top: 14px;
-            border-radius: 16px;
-            overflow: hidden;
-            background: #000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 1px solid #334155;
-        }
-        .reader-frame video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: block;
-            background: #000;
-        }
-        .reader-frame canvas {
-            display: none;
-        }
-    </style>
 </head>
 <body>
     <main class="page-shell">
@@ -86,8 +40,6 @@
 
     <script src="qr.js"></script>
     <script>
-        const SUPABASE_URL = "https://mqfaueuimoasxoijcrek.supabase.co";
-        const SUPABASE_KEY = "sb_publishable_ZiA3fC0I5v_LPcliHXTnWQ_S6C2MZ5D";
         const statusEl = document.getElementById('status');
         const startBtn = document.getElementById('start-btn');
         const showEl = document.getElementById('show');
@@ -144,26 +96,6 @@
             window.location.href = '../index.html?' + params.toString();
         });
 
-        function applyReaderLayout() {
-            const readerEl = document.getElementById('reader');
-            if (!readerEl) return;
-            readerEl.style.width = '100%';
-            readerEl.style.minHeight = '320px';
-            readerEl.style.height = 'min(60vh, 420px)';
-            readerEl.style.borderRadius = '16px';
-            readerEl.style.overflow = 'hidden';
-            readerEl.style.background = '#000';
-            readerEl.style.display = 'flex';
-            readerEl.style.alignItems = 'center';
-            readerEl.style.justifyContent = 'center';
-            const videoEl = readerEl.querySelector('video');
-            if (videoEl) {
-                videoEl.style.width = '100%';
-                videoEl.style.height = '100%';
-                videoEl.style.objectFit = 'cover';
-            }
-        }
-
         async function startScanner() {
             if (isScanning) return;
 
@@ -177,9 +109,8 @@
                 return;
             }
 
-            const isSecureContext = window.isSecureContext || window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-            if (!isSecureContext) {
-                setStatus('Buka halaman lewat server lokal seperti http://localhost:8000 agar kamera aktif.', true);
+            if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                setStatus('Buka halaman ini lewat localhost atau HTTPS agar kamera aktif.', true);
                 return;
             }
 
@@ -188,12 +119,7 @@
             setStatus('Meminta akses kamera...');
 
             try {
-                if (scanner) {
-                    try { await scanner.stop(); } catch (stopErr) { console.warn(stopErr); }
-                    try { await scanner.clear(); } catch (clearErr) { console.warn(clearErr); }
-                }
-
-                applyReaderLayout();
+                scanner = new Html5Qrcode('reader');
                 const config = {
                     fps: 10,
                     qrbox: { width: 250, height: 250 },
@@ -201,34 +127,9 @@
                     disableFlip: false
                 };
 
-                const attempts = [
-                    { facingMode: 'environment' },
-                    { facingMode: 'user' },
-                    true
-                ];
-
-                let lastError = null;
-                for (const constraints of attempts) {
-                    try {
-                        const candidateScanner = new Html5Qrcode('reader');
-                        if (constraints === true) {
-                            await candidateScanner.start(undefined, config, onScanSuccess, onScanFailure);
-                        } else {
-                            await candidateScanner.start(constraints, config, onScanSuccess, onScanFailure);
-                        }
-                        scanner = candidateScanner;
-                        isScanning = true;
-                        setStatus('Arahkan kamera ke barcode.');
-                        setTimeout(applyReaderLayout, 250);
-                        return;
-                    } catch (err) {
-                        lastError = err;
-                        try { await candidateScanner?.stop(); } catch (stopErr) { console.warn(stopErr); }
-                        try { await candidateScanner?.clear(); } catch (clearErr) { console.warn(clearErr); }
-                    }
-                }
-
-                throw lastError || new Error('Tidak bisa membuka kamera.');
+                await scanner.start({ facingMode: 'environment' }, config, onScanSuccess, onScanFailure);
+                isScanning = true;
+                setStatus('Arahkan kamera ke barcode.');
             } catch (err) {
                 console.error(err);
                 setStatus('Gagal membuka kamera: ' + (err?.message || err), true);
