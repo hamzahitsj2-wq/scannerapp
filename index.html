@@ -86,6 +86,8 @@
 
     <script src="qr.js"></script>
     <script>
+        const SUPABASE_URL = "https://mqfaueuimoasxoijcrek.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_ZiA3fC0I5v_LPcliHXTnWQ_S6C2MZ5D";
         const statusEl = document.getElementById('status');
         const startBtn = document.getElementById('start-btn');
         const showEl = document.getElementById('show');
@@ -201,8 +203,8 @@
 
                 const attempts = [
                     { facingMode: { ideal: 'environment' } },
-                    { facingMode: 'user' },
-                    { facingMode: { ideal: 'user' } }
+                    { facingMode: 'environment' },
+                    { facingMode: 'user' }
                 ];
 
                 let lastError = null;
