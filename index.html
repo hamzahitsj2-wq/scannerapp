@@ -202,16 +202,20 @@
                 };
 
                 const attempts = [
-                    { facingMode: { ideal: 'environment' } },
                     { facingMode: 'environment' },
-                    { facingMode: 'user' }
+                    { facingMode: 'user' },
+                    true
                 ];
 
                 let lastError = null;
                 for (const constraints of attempts) {
                     try {
                         const candidateScanner = new Html5Qrcode('reader');
-                        await candidateScanner.start(constraints, config, onScanSuccess, onScanFailure);
+                        if (constraints === true) {
+                            await candidateScanner.start(undefined, config, onScanSuccess, onScanFailure);
+                        } else {
+                            await candidateScanner.start(constraints, config, onScanSuccess, onScanFailure);
+                        }
                         scanner = candidateScanner;
                         isScanning = true;
                         setStatus('Arahkan kamera ke barcode.');
@@ -219,8 +223,8 @@
                         return;
                     } catch (err) {
                         lastError = err;
-                        try { await scanner?.stop(); } catch (stopErr) { console.warn(stopErr); }
-                        try { await scanner?.clear(); } catch (clearErr) { console.warn(clearErr); }
+                        try { await candidateScanner?.stop(); } catch (stopErr) { console.warn(stopErr); }
+                        try { await candidateScanner?.clear(); } catch (clearErr) { console.warn(clearErr); }
                     }
                 }
 
