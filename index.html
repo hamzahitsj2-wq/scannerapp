@@ -6,6 +6,7 @@
     <title>Scan Masuk Barang SKU</title>
     <!-- Memanggil CSS Eksternal (Jika ada, tetap dipertahankan) -->
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <style>
         /* Desain tambahan agar bingkai kamera responsif mengikuti mode landscape 16:9 */
@@ -84,14 +85,22 @@
 
         <!-- Form detail input barang masuk -->
         <div id="detail-form" style="display: none;">
-            <h3>Detail Barang Masuk</h3>
+            <h3 id="form-title">Detail Barang Masuk</h3>
             <div class="form-group">
-                <label for="note">Keterangan Barang (Nama/Varian):</label>
-                <input type="text" id="note" placeholder="Contoh: Indomie Goreng Aceh">
+                <label for="nama">Nama Produk:</label>
+                <input type="text" id="nama" placeholder="Contoh: Indomie Goreng Aceh">
             </div>
             <div class="form-group">
-                <label for="qty">Jumlah Barang Masuk:</label>
-                <input type="number" id="qty" value="1" min="1">
+                <label for="kategori">Kategori:</label>
+                <input type="text" id="kategori" placeholder="Contoh: Makanan Instan">
+            </div>
+            <div class="form-group">
+                <label for="harga">Harga Produk (Rp):</label>
+                <input type="number" id="harga" value="0" min="0">
+            </div>
+            <div class="form-group">
+                <label for="stok">Jumlah Stok Masuk:</label>
+                <input type="number" id="stok" value="1" min="1">
             </div>
             <button class="btn btn-primary" onclick="simpanKeSku()">Simpan ke SKU</button>
         </div>
@@ -101,9 +110,14 @@
     <script src="qr.js"></script>
 
     <script>
+        const SUPABASE_URL = "https://brarwmuhcszekrellnkk.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_O4TWch71_Vtcdagi-YFBpQ_YzggF6OD";
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
         let scanner = null;
         let isScanning = false;
         let scannedSku = "";
+        let isNewProduct = false; // Penanda apakah produk baru atau lama
 
         function setStatus(msg) {
             document.getElementById('status').innerText = msg;
@@ -164,8 +178,8 @@
             }
         }
 
-        // Fungsi pemicu saat barcode berhasil dibaca sistem
-        function onScanSuccess(decodedText, decodedResult) {
+        // PERUBAHAN UTAMA 1: Mengubah fungsi menjadi async untuk cek database Supabase
+        async function onScanSuccess(decodedText, decodedResult) {
             // Memutar efek suara beep pelan (opsional, sebagai penanda sukses)
             try {
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -179,43 +193,141 @@
 
             scannedSku = decodedText;
             
-            // Memunculkan teks SKU dan Form Input
-            document.getElementById('result').innerText = decodedText;
-            document.getElementById('show').style.display = 'block';
-            document.getElementById('detail-form').style.display = 'block';
-            
-            setStatus('Barcode berhasil terbaca! Silakan lengkapi data barang.');
-            
             // Menghentikan kamera otomatis demi menghemat baterai HP setelah sukses scan
-            stopScanner();
+            await stopScanner();
+            setStatus('Memeriksa produk di database Supabase...');
+
+            try {
+                // Cek data produk berdasarkan id_produk (barcode)
+                let { data: produk, error } = await supabaseClient
+                    .from('produk')
+                    .select('*')
+                    .eq('id_produk', scannedSku)
+                    .single();
+
+                if (error && error.code !== 'PGRST116') { // PGRST116 artinya data tidak ditemukan (tidak masalah)
+                    throw error;
+                }
+
+                // Memunculkan teks SKU dan Form Input
+                document.getElementById('result').innerText = decodedText;
+                document.getElementById('show').style.display = 'block';
+                document.getElementById('detail-form').style.display = 'block';
+
+                const namaInput = document.getElementById('nama');
+                const kategoriInput = document.getElementById('kategori');
+                const hargaInput = document.getElementById('harga');
+
+                if (produk) {
+                    // JIKA PRODUK SUDAH ADA (Tinggal tambah stok)
+                    isNewProduct = false;
+                    document.getElementById('form-title').innerText = "Detail Barang Masuk (Terdaftar)";
+                    
+                    // Isi data master dan kunci inputnya agar tidak sembarangan diubah oleh operator
+                    namaInput.value = produk.nama;
+                    namaInput.disabled = true;
+                    kategoriInput.value = produk.kategori || "";
+                    kategoriInput.disabled = true;
+                    hargaInput.value = produk.harga || 0;
+                    hargaInput.disabled = true;
+
+                    setStatus('Produk ditemukan! Silakan masukkan jumlah kuantitas stok masuk.');
+                } else {
+                    // JIKA PRODUK BARU BELUM TERDAFTAR
+                    isNewProduct = true;
+                    document.getElementById('form-title').innerText = "Registrasi Produk Baru";
+                    
+                    // Reset input dan buka kuncinya agar bisa diisi manual
+                    namaInput.value = "";
+                    namaInput.disabled = false;
+                    kategoriInput.value = "";
+                    kategoriInput.disabled = false;
+                    hargaInput.value = 0;
+                    hargaInput.disabled = false;
+
+                    setStatus('Barcode baru terdeteksi! Silakan lengkapi spesifikasi data produk baru.');
+                }
+
+            } catch (err) {
+                console.error("Gagal memproses database:", err.message);
+                setStatus('Gagal memproses database: ' + err.message);
+            }
         }
 
         function onScanFailure(error) {
             // Diabaikan agar konsol browser tidak penuh saat proses pencarian kode berlangsung
         }
 
-        // Fungsi Tombol Simpan untuk mengirim data ke halaman utama (index induk)
-        function simpanKeSku() {
-            const noteValue = document.getElementById('note').value.trim();
-            const qtyValue = document.getElementById('qty').value;
+        // PERUBAHAN UTAMA 2: Mengubah fungsi simpan agar memproses data ke Supabase terlebih dahulu
+        async function simpanKeSku() {
+            const namaValue = document.getElementById('nama').value.trim();
+            const kategoriValue = document.getElementById('kategori').value.trim();
+            const hargaValue = parseFloat(document.getElementById('harga').value) || 0;
+            const stokValue = parseInt(document.getElementById('stok').value) || 0;
 
             if (!scannedSku) {
                 alert("Silakan lakukan scan barcode terlebih dahulu!");
                 return;
             }
-            if (!noteValue) {
-                alert("Keterangan barang mohon diisi terlebih dahulu!");
+            if (!namaValue) {
+                alert("Nama produk mohon diisi terlebih dahulu!");
                 return;
             }
 
-            // Menyimpan sementara hasil input ke localStorage agar aman
-            localStorage.setItem('last_scanned_sku', scannedSku);
-            localStorage.setItem('last_scanned_note', noteValue);
-            localStorage.setItem('last_scanned_qty', qtyValue);
+            try {
+                if (isNewProduct) {
+                    // Skenario A: Insert data produk baru ke Supabase
+                    setStatus('Mendaftarkan produk baru ke cloud...');
+                    const { error: insertError } = await supabaseClient
+                        .from('produk')
+                        .insert([
+                            {
+                                id_produk: scannedSku,
+                                nama: namaValue,
+                                kategori: kategoriValue,
+                                harga: hargaValue,
+                                stok: stokValue
+                            }
+                        ]);
+                    if (insertError) throw insertError;
+                } else {
+                    // Skenario B: Ambil stok lama, jumlahkan, lalu update ke Supabase
+                    setStatus('Memperbarui jumlah stok di database...');
+                    let { data: produkLama } = await supabaseClient
+                        .from('produk')
+                        .select('stok')
+                        .eq('id_produk', scannedSku)
+                        .single();
 
-            // Melakukan redirect balik ke index utama sembari membawa parameter data barang masuk
-            const targetUrl = `../index.html?sku=${encodeURIComponent(scannedSku)}&note=${encodeURIComponent(noteValue)}&qty=${encodeURIComponent(qtyValue)}`;
-            window.location.href = targetUrl;
+                    const stokSekarang = produkLama ? produkLama.stok : 0;
+                    const totalStokBaru = stokSekarang + stokValue;
+
+                    const { error: updateError } = await supabaseClient
+                        .from('produk')
+                        .update({ stok: totalStokBaru })
+                        .eq('id_produk', scannedSku);
+                    if (updateError) throw updateError;
+                }
+
+                // Menyimpan sementara hasil input ke localStorage agar aman (sesuai kode asli Anda)
+                localStorage.setItem('last_scanned_sku', scannedSku);
+                localStorage.setItem('last_scanned_note', namaValue);
+                localStorage.setItem('last_scanned_qty', stokValue);
+
+                // Lepas kembali proteksi disabled sebelum beralih halaman
+                document.getElementById('nama').disabled = false;
+                document.getElementById('kategori').disabled = false;
+                document.getElementById('harga').disabled = false;
+
+                // Melakukan redirect balik ke index utama sembari membawa parameter data barang masuk
+                const targetUrl = `../index.html?sku=${encodeURIComponent(scannedSku)}&note=${encodeURIComponent(namaValue)}&qty=${encodeURIComponent(stokValue)}`;
+                window.location.href = targetUrl;
+
+            } catch (err) {
+                alert("Gagal menyimpan data ke Supabase: " + err.message);
+                // Kembalikan status jika gagal
+                setStatus('Gagal menyimpan data.');
+            }
         }
     </script>
 </body>
