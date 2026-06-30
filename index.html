@@ -3,158 +3,220 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scan Barcode SKU</title>
+    <title>Scan Masuk Barang SKU</title>
+    <!-- Memanggil CSS Eksternal (Jika ada, tetap dipertahankan) -->
     <link rel="stylesheet" href="style.css">
+    
+    <style>
+        /* Desain tambahan agar bingkai kamera responsif mengikuti mode landscape 16:9 */
+        .reader-frame {
+            width: 100%;
+            height: auto; /* Mengikuti rasio aspek kamera secara dinamis */
+            min-height: auto; 
+            margin: 18px 0 0;
+            background: #e5e7eb;
+            border-radius: 18px;
+            overflow: hidden;
+            border: 1px solid #d1d5db;
+        }
+        
+        #reader {
+            width: 100%;
+            background: #000;
+        }
+
+        /* Merapikan tampilan tombol dan form */
+        .btn {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            border: none;
+            margin-top: 10px;
+        }
+        .btn-primary { background-color: #2563eb; color: white; }
+        .btn-secondary { background-color: #4b5563; color: white; }
+        
+        #show, #detail-form {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            background-color: #f9fafb;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            box-sizing: border-box;
+        }
+    </style>
 </head>
 <body>
-    <main class="page-shell">
-        <section class="scan-card">
-            <div class="card-header">
-                <p class="eyebrow">SIM Market</p>
-                <h1>Scan Barcode SKU</h1>
-                <p id="status" class="status-text">Klik tombol untuk memulai kamera.</p>
+
+    <div style="max-width: 600px; margin: 0 auto; padding: 20px; font-family: sans-serif;">
+        <h2>Scanner Barcode Produk</h2>
+        <p id="status" style="color: #6b7280;">Kamera belum aktif.</p>
+        
+        <button id="btn-scan" class="btn btn-primary" onclick="toggleScanner()">Mulai Scan</button>
+
+        <!-- Bingkai area kamera -->
+        <div class="reader-frame">
+            <div id="reader"></div>
+        </div>
+
+        <!-- Bagian untuk menampilkan hasil pemindaian langsung -->
+        <div id="show" style="display: none;">
+            <h3>Hasil Scan:</h3>
+            <p id="result" style="font-size: 20px; font-weight: bold; color: #10b981; word-break: break-all;"></p>
+        </div>
+
+        <!-- Form detail input barang masuk -->
+        <div id="detail-form" style="display: none;">
+            <h3>Detail Barang Masuk</h3>
+            <div class="form-group">
+                <label for="note">Keterangan Barang (Nama/Varian):</label>
+                <input type="text" id="note" placeholder="Contoh: Indomie Goreng Aceh">
             </div>
-
-            <button id="start-btn" type="button">Mulai Kamera</button>
-            <div id="reader" class="reader-frame"></div>
-
-            <div id="show" class="result-box">
-                <h4>Hasil Scan</h4>
-                <p id="result"></p>
+            <div class="form-group">
+                <label for="qty">Jumlah Barang Masuk:</label>
+                <input type="number" id="qty" value="1" min="1">
             </div>
+            <button class="btn btn-primary" onclick="simpanKeSku()">Simpan ke SKU</button>
+        </div>
+    </div>
 
-            <div id="detail-form" class="detail-form">
-                <p class="helper-text">Isi detail barang sebelum diteruskan ke aplikasi.</p>
-                <label class="detail-field">
-                    <span>Keterangan barang</span>
-                    <input id="item-note" type="text" placeholder="Contoh: stok masuk dari supplier" />
-                </label>
-                <label class="detail-field">
-                    <span>Jumlah barang masuk</span>
-                    <input id="item-qty" type="number" min="1" value="1" />
-                </label>
-                <button id="save-scan-btn" type="button">Simpan ke SKU</button>
-            </div>
-        </section>
-    </main>
-
+    <!-- Menghubungkan library inti qr.js (html5-qrcode) -->
     <script src="qr.js"></script>
+
     <script>
-        const statusEl = document.getElementById('status');
-        const startBtn = document.getElementById('start-btn');
-        const showEl = document.getElementById('show');
-        const resultEl = document.getElementById('result');
-        const detailFormEl = document.getElementById('detail-form');
-        const itemNoteInput = document.getElementById('item-note');
-        const itemQtyInput = document.getElementById('item-qty');
-        const saveScanBtn = document.getElementById('save-scan-btn');
         let scanner = null;
         let isScanning = false;
-        let lastScannedSku = '';
+        let scannedSku = "";
 
-        function setStatus(message, isError = false) {
-            statusEl.textContent = message;
-            statusEl.style.color = isError ? '#fda4af' : '#cbd5e1';
+        function setStatus(msg) {
+            document.getElementById('status').innerText = msg;
         }
-
-        async function onScanSuccess(decodedText) {
-            if (!decodedText) return;
-
-            lastScannedSku = decodedText;
-            showEl.style.display = 'block';
-            detailFormEl.style.display = 'block';
-            resultEl.textContent = decodedText;
-            itemNoteInput.value = '';
-            itemQtyInput.value = '1';
-            localStorage.setItem('last_scanned_sku', decodedText);
-            if (scanner) {
-                try {
-                    await scanner.stop();
-                } catch (err) {
-                    console.warn(err);
-                }
-            }
-            setStatus('Barcode berhasil terbaca. Lengkapi data lalu simpan.');
-        }
-
-        function onScanFailure() {
-            // biarkan kosong, agar pemindaian tetap berjalan
-        }
-
-        saveScanBtn.addEventListener('click', () => {
-            const note = itemNoteInput.value.trim();
-            const qty = parseInt(itemQtyInput.value, 10) || 1;
-            const params = new URLSearchParams({
-                sku: lastScannedSku,
-                note,
-                qty: String(qty)
-            });
-
-            localStorage.setItem('last_scanned_sku', lastScannedSku);
-            localStorage.setItem('last_scanned_note', note);
-            localStorage.setItem('last_scanned_qty', String(qty));
-            window.location.href = '../index.html?' + params.toString();
-        });
 
         async function startScanner() {
-            if (isScanning) return;
-
-            if (!window.Html5Qrcode) {
-                setStatus('Pustaka scanner tidak tersedia.', true);
-                return;
-            }
-
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                setStatus('Browser ini tidak mendukung akses kamera.', true);
-                return;
-            }
-
-            if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-                setStatus('Buka halaman ini lewat localhost atau HTTPS agar kamera aktif.', true);
-                return;
-            }
-
-            startBtn.disabled = true;
-            startBtn.textContent = 'Memulai...';
-            setStatus('Meminta akses kamera...');
-
             try {
+                // Inisialisasi html5-qrcode pada elemen div #reader
                 scanner = new Html5Qrcode('reader');
+                
+                // KONFIGURASI BARU: Dioptimalkan khusus untuk Landscape Barcode Produk
                 const config = {
-                    fps: 10,
-                    qrbox: { width: 250, height: 250 },
-                    aspectRatio: 1.0,
+                    fps: 15, // Kecepatan tangkapan frame per detik (lebih responsif)
+                    qrbox: function(viewfinderWidth, viewfinderHeight) {
+                        // Membuat kotak target berbentuk persegi panjang horizontal (landscape)
+                        // Lebar kotak mengambil 85% area kamera, tinggi kotak mengambil 35% area kamera
+                        const width = Math.floor(viewfinderWidth * 0.85);
+                        const height = Math.floor(viewfinderHeight * 0.35);
+                        
+                        // Pembatasan ukuran minimum dan maksimum kotak target agar pas di layar HP
+                        return {
+                            width: width < 260 ? 260 : (width > 480 ? 480 : width),
+                            height: height < 100 ? 100 : (height > 160 ? 160 : height)
+                        };
+                    },
+                    aspectRatio: 1.777778, // Mengunci kamera ke rasio 16:9 widescreen (Landscape)
                     disableFlip: false
                 };
 
+                // Membuka kamera belakang HP
                 await scanner.start({ facingMode: 'environment' }, config, onScanSuccess, onScanFailure);
                 isScanning = true;
-                setStatus('Arahkan kamera ke barcode.');
+                document.getElementById('btn-scan').innerText = "Hentikan Kamera";
+                document.getElementById('btn-scan').className = "btn btn-secondary";
+                setStatus('Arahkan kotak landscape kamera tepat ke barcode produk.');
             } catch (err) {
                 console.error(err);
-                setStatus('Gagal membuka kamera: ' + (err?.message || err), true);
-                if (scanner) {
-                    try {
-                        await scanner.clear();
-                    } catch (clearErr) {
-                        console.warn(clearErr);
-                    }
-                }
-                scanner = null;
-                isScanning = false;
-            } finally {
-                startBtn.disabled = false;
-                startBtn.textContent = 'Mulai Kamera';
+                setStatus('Gagal mengakses kamera. Pastikan menggunakan HTTPS atau Localhost, serta beri izin kamera.');
             }
         }
 
-        startBtn.addEventListener('click', () => {
-            startScanner();
-        });
+        async function stopScanner() {
+            if (scanner) {
+                await scanner.stop();
+                scanner = null;
+            }
+            isScanning = false;
+            document.getElementById('btn-scan').innerText = "Mulai Scan";
+            document.getElementById('btn-scan').className = "btn btn-primary";
+            setStatus('Kamera dinonaktifkan.');
+        }
 
-        window.addEventListener('load', () => {
-            startScanner();
-        });
+        function toggleScanner() {
+            if (isScanning) {
+                stopScanner();
+            } else {
+                startScanner();
+            }
+        }
+
+        // Fungsi pemicu saat barcode berhasil dibaca sistem
+        function onScanSuccess(decodedText, decodedResult) {
+            // Memutar efek suara beep pelan (opsional, sebagai penanda sukses)
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
+                oscillator.connect(audioCtx.destination);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.1);
+            } catch(e){}
+
+            scannedSku = decodedText;
+            
+            // Memunculkan teks SKU dan Form Input
+            document.getElementById('result').innerText = decodedText;
+            document.getElementById('show').style.display = 'block';
+            document.getElementById('detail-form').style.display = 'block';
+            
+            setStatus('Barcode berhasil terbaca! Silakan lengkapi data barang.');
+            
+            // Menghentikan kamera otomatis demi menghemat baterai HP setelah sukses scan
+            stopScanner();
+        }
+
+        function onScanFailure(error) {
+            // Diabaikan agar konsol browser tidak penuh saat proses pencarian kode berlangsung
+        }
+
+        // Fungsi Tombol Simpan untuk mengirim data ke halaman utama (index induk)
+        function simpanKeSku() {
+            const noteValue = document.getElementById('note').value.trim();
+            const qtyValue = document.getElementById('qty').value;
+
+            if (!scannedSku) {
+                alert("Silakan lakukan scan barcode terlebih dahulu!");
+                return;
+            }
+            if (!noteValue) {
+                alert("Keterangan barang mohon diisi terlebih dahulu!");
+                return;
+            }
+
+            // Menyimpan sementara hasil input ke localStorage agar aman
+            localStorage.setItem('last_scanned_sku', scannedSku);
+            localStorage.setItem('last_scanned_note', noteValue);
+            localStorage.setItem('last_scanned_qty', qtyValue);
+
+            // Melakukan redirect balik ke index utama sembari membawa parameter data barang masuk
+            const targetUrl = `../index.html?sku=${encodeURIComponent(scannedSku)}&note=${encodeURIComponent(noteValue)}&qty=${encodeURIComponent(qtyValue)}`;
+            window.location.href = targetUrl;
+        }
     </script>
 </body>
 </html>

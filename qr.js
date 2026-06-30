@@ -1,4 +1,6 @@
 /*! For license information please see html5-qrcode.min.js.LICENSE.txt */
+const SUPABASE_URL = "https://mqfaueuimoasxoijcrek.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_ZiA3fC0I5v_LPcliHXTnWQ_S6C2MZ5D";
 var __Html5QrcodeLibrary__;
 (() => {
     var t = {
