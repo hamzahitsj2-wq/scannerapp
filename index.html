@@ -3,165 +3,251 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SIMMarket - Barcode Scanner Stok</title>
-    <!-- Tailwind CSS untuk Tampilan Bagus di HP -->
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <!-- Library Supabase JS -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Library HTML5 QR/Barcode Scanner Resmi -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <title>Scan Barcode SKU</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            margin: 0;
+            background: #0f172a;
+            color: #e2e8f0;
+            font-family: Arial, sans-serif;
+        }
+        .page-shell {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .scan-card {
+            width: min(100%, 480px);
+            background: #111827;
+            border-radius: 18px;
+            padding: 20px;
+            box-shadow: 0 16px 40px rgba(0,0,0,0.25);
+        }
+        .reader-frame {
+            width: 100%;
+            min-height: 320px;
+            height: min(60vh, 420px);
+            margin-top: 14px;
+            border-radius: 16px;
+            overflow: hidden;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #334155;
+        }
+        .reader-frame video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            background: #000;
+        }
+        .reader-frame canvas {
+            display: none;
+        }
+    </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col items-center p-4">
-
-    <div class="w-full max-w-md bg-white rounded-xl shadow-md p-4 mb-4">
-        <h1 class="text-xl font-bold text-center text-blue-600 mb-2">SIMMarket Barcode Scanner</h1>
-        <p class="text-xs text-gray-500 text-center mb-4">Gunakan kamera HP untuk input / tambah stok otomatis</p>
-        
-        <!-- Kotak Kamera Scanner -->
-        <div id="reader" class="overflow-hidden rounded-lg border border-gray-300 bg-black"></div>
-        
-        <!-- Status Terakhir Scan -->
-        <div id="scan-status" class="mt-4 p-3 bg-gray-50 rounded-lg text-sm text-center font-semibold text-gray-700">
-            Siap memindai... Silakan arahkan kamera ke barcode produk.
-        </div>
-    </div>
-
-    <!-- MODAL FORM INPUT BARANG BARU (Muncul jika barcode belum terdaftar) -->
-    <div id="modal-barang-baru" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4">
-        <div class="bg-white w-full max-w-sm rounded-xl p-5 shadow-2xl">
-            <h3 class="text-lg font-bold text-gray-800 mb-3">📦 Barcode Baru Terdeteksi!</h3>
-            
-            <div class="space-y-3">
-                <div>
-                    <label class="text-xs font-semibold text-gray-500">ID / Barcode</label>
-                    <input type="text" id="new-id" readonly class="w-full bg-gray-100 border p-2 rounded text-sm font-mono">
-                </div>
-                <div>
-                    <label class="text-xs font-semibold text-gray-500">Nama Barang</label>
-                    <input type="text" id="new-nama" placeholder="Contoh: Chiki Balls Cokelat" class="w-full border p-2 rounded text-sm">
-                </div>
-                <div>
-                    <label class="text-xs font-semibold text-gray-500">Kategori</label>
-                    <input type="text" id="new-kategori" placeholder="Contoh: Makanan / Minuman" class="w-full border p-2 rounded text-sm">
-                </div>
-                <div>
-                    <label class="text-xs font-semibold text-gray-500">Harga Jual (Rp)</label>
-                    <input type="number" id="new-harga" placeholder="3500" class="w-full border p-2 rounded text-sm">
-                </div>
-                <div>
-                    <label class="text-xs font-semibold text-gray-500">Stok Awal (Qty)</label>
-                    <input type="number" id="new-qty" value="1" class="w-full border p-2 rounded text-sm">
-                </div>
+<body>
+    <main class="page-shell">
+        <section class="scan-card">
+            <div class="card-header">
+                <p class="eyebrow">SIM Market</p>
+                <h1>Scan Barcode SKU</h1>
+                <p id="status" class="status-text">Klik tombol untuk memulai kamera.</p>
             </div>
 
-            <div class="flex space-x-2 mt-4">
-                <button onclick="tutupModal()" class="flex-1 bg-gray-300 text-gray-700 p-2 rounded text-sm font-semibold">Batal</button>
-                <button onclick="simpanBarangBaru()" class="flex-1 bg-blue-600 text-white p-2 rounded text-sm font-semibold hover:bg-blue-700">Simpan Ke Stok</button>
-            </div>
-        </div>
-    </div>
+            <button id="start-btn" type="button">Mulai Kamera</button>
+            <div id="reader" class="reader-frame"></div>
 
+            <div id="show" class="result-box">
+                <h4>Hasil Scan</h4>
+                <p id="result"></p>
+            </div>
+
+            <div id="detail-form" class="detail-form">
+                <p class="helper-text">Isi detail barang sebelum diteruskan ke aplikasi.</p>
+                <label class="detail-field">
+                    <span>Keterangan barang</span>
+                    <input id="item-note" type="text" placeholder="Contoh: stok masuk dari supplier" />
+                </label>
+                <label class="detail-field">
+                    <span>Jumlah barang masuk</span>
+                    <input id="item-qty" type="number" min="1" value="1" />
+                </label>
+                <button id="save-scan-btn" type="button">Simpan ke SKU</button>
+            </div>
+        </section>
+    </main>
+
+    <script src="qr.js"></script>
     <script>
-        // 1. KONFIGURASI SUPABASE (Ganti dengan data Anda)
-        const SUPABASE_URL = "https://mqfaueuimoasxoijcrek.supabase.co";
-        const SUPABASE_KEY = "sb_publishable_ZiA3fC0I5v_LPcliHXTnWQ_S6C2MZ5D";
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const statusEl = document.getElementById('status');
+        const startBtn = document.getElementById('start-btn');
+        const showEl = document.getElementById('show');
+        const resultEl = document.getElementById('result');
+        const detailFormEl = document.getElementById('detail-form');
+        const itemNoteInput = document.getElementById('item-note');
+        const itemQtyInput = document.getElementById('item-qty');
+        const saveScanBtn = document.getElementById('save-scan-btn');
+        let scanner = null;
+        let isScanning = false;
+        let lastScannedSku = '';
 
-        let isScanning = true; // Flag penahan delay agar tidak double scan dalam sedetik
-
-        // 2. INISIALISASI SCANNER KAMERA
-        function onScanSuccess(decodedText, decodedResult) {
-            if (!isScanning) return; 
-            isScanning = false; // Kunci scanner sebentar sewaktu memproses data
-
-            document.getElementById("scan-status").innerHTML = `🔄 Memproses Barcode: <span class="font-mono text-blue-600">${decodedText}</span>`;
-            
-            // Jalankan fungsi pengecekan ke Supabase
-            cekDanProsesBarcode(decodedText);
+        function setStatus(message, isError = false) {
+            statusEl.textContent = message;
+            statusEl.style.color = isError ? '#fda4af' : '#cbd5e1';
         }
 
-        // 3. LOGIKA UTAMA: CEK KE DATABASE SUPABASE SIMMARKET
-        async function cekDanProsesBarcode(barcodeId) {
+        async function onScanSuccess(decodedText) {
+            if (!decodedText) return;
+
+            lastScannedSku = decodedText;
+            showEl.style.display = 'block';
+            detailFormEl.style.display = 'block';
+            resultEl.textContent = decodedText;
+            itemNoteInput.value = '';
+            itemQtyInput.value = '1';
+            localStorage.setItem('last_scanned_sku', decodedText);
+            if (scanner) {
+                try {
+                    await scanner.stop();
+                } catch (err) {
+                    console.warn(err);
+                }
+            }
+            setStatus('Barcode berhasil terbaca. Lengkapi data lalu simpan.');
+        }
+
+        function onScanFailure() {
+            // biarkan kosong, agar pemindaian tetap berjalan
+        }
+
+        saveScanBtn.addEventListener('click', () => {
+            const note = itemNoteInput.value.trim();
+            const qty = parseInt(itemQtyInput.value, 10) || 1;
+            const params = new URLSearchParams({
+                sku: lastScannedSku,
+                note,
+                qty: String(qty)
+            });
+
+            localStorage.setItem('last_scanned_sku', lastScannedSku);
+            localStorage.setItem('last_scanned_note', note);
+            localStorage.setItem('last_scanned_qty', String(qty));
+            window.location.href = '../index.html?' + params.toString();
+        });
+
+        function applyReaderLayout() {
+            const readerEl = document.getElementById('reader');
+            if (!readerEl) return;
+            readerEl.style.width = '100%';
+            readerEl.style.minHeight = '320px';
+            readerEl.style.height = 'min(60vh, 420px)';
+            readerEl.style.borderRadius = '16px';
+            readerEl.style.overflow = 'hidden';
+            readerEl.style.background = '#000';
+            readerEl.style.display = 'flex';
+            readerEl.style.alignItems = 'center';
+            readerEl.style.justifyContent = 'center';
+            const videoEl = readerEl.querySelector('video');
+            if (videoEl) {
+                videoEl.style.width = '100%';
+                videoEl.style.height = '100%';
+                videoEl.style.objectFit = 'cover';
+            }
+        }
+
+        async function startScanner() {
+            if (isScanning) return;
+
+            if (!window.Html5Qrcode) {
+                setStatus('Pustaka scanner tidak tersedia.', true);
+                return;
+            }
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                setStatus('Browser ini tidak mendukung akses kamera.', true);
+                return;
+            }
+
+            const isSecureContext = window.isSecureContext || window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            if (!isSecureContext) {
+                setStatus('Buka halaman lewat server lokal seperti http://localhost:8000 agar kamera aktif.', true);
+                return;
+            }
+
+            startBtn.disabled = true;
+            startBtn.textContent = 'Memulai...';
+            setStatus('Meminta akses kamera...');
+
             try {
-                // Cari apakah ID Barcode sudah terdaftar di master_stok
-                const { data: barang, error } = await supabase
-                    .from('master_stok')
-                    .select('*')
-                    .eq('id', barcodeId)
-                    .single();
-
-                if (barang) {
-                    // JIKA BARANG SUDAH ADA -> Omatiss Tambah Qty + 1 (Restock Instan)
-                    const QtyBaru = barang.qty + 1;
-                    
-                    const { error: updateError } = await supabase
-                        .from('master_stok')
-                        .update({ qty: QtyBaru })
-                        .eq('id', barcodeId);
-
-                    if (!updateError) {
-                        document.getElementById("scan-status").innerHTML = `✅ <b>${barang.nama}</b> ditemukan! Stok ditambah menjadi <b>${QtyBaru}</b>`;
-                    }
-                    
-                    // Reset scanner setelah 2 detik untuk scan barang berikutnya
-                    setTimeout(() => { isScanning = true; }, 2000);
-
-                } else {
-                    // JIKA BARANG BELUM ADA -> Buka Modal Input Barang Baru
-                    document.getElementById("scan-status").innerHTML = `⚠️ Barcode belum terdaftar. Silakan isi form.`;
-                    bukaModalBarangBaru(barcodeId);
+                if (scanner) {
+                    try { await scanner.stop(); } catch (stopErr) { console.warn(stopErr); }
+                    try { await scanner.clear(); } catch (clearErr) { console.warn(clearErr); }
                 }
 
+                applyReaderLayout();
+                const config = {
+                    fps: 10,
+                    qrbox: { width: 250, height: 250 },
+                    aspectRatio: 1.0,
+                    disableFlip: false
+                };
+
+                const attempts = [
+                    { facingMode: { ideal: 'environment' } },
+                    { facingMode: 'user' },
+                    { facingMode: { ideal: 'user' } }
+                ];
+
+                let lastError = null;
+                for (const constraints of attempts) {
+                    try {
+                        const candidateScanner = new Html5Qrcode('reader');
+                        await candidateScanner.start(constraints, config, onScanSuccess, onScanFailure);
+                        scanner = candidateScanner;
+                        isScanning = true;
+                        setStatus('Arahkan kamera ke barcode.');
+                        setTimeout(applyReaderLayout, 250);
+                        return;
+                    } catch (err) {
+                        lastError = err;
+                        try { await scanner?.stop(); } catch (stopErr) { console.warn(stopErr); }
+                        try { await scanner?.clear(); } catch (clearErr) { console.warn(clearErr); }
+                    }
+                }
+
+                throw lastError || new Error('Tidak bisa membuka kamera.');
             } catch (err) {
                 console.error(err);
-                isScanning = true;
+                setStatus('Gagal membuka kamera: ' + (err?.message || err), true);
+                if (scanner) {
+                    try {
+                        await scanner.clear();
+                    } catch (clearErr) {
+                        console.warn(clearErr);
+                    }
+                }
+                scanner = null;
+                isScanning = false;
+            } finally {
+                startBtn.disabled = false;
+                startBtn.textContent = 'Mulai Kamera';
             }
         }
 
-        // 4. FUNGSI UNTUK MENANGANI BARANG BARU (INPUT OTOMATIS)
-        function bukaModalBarangBaru(barcodeId) {
-            document.getElementById("new-id").value = barcodeId;
-            document.getElementById("new-nama").value = "";
-            document.getElementById("new-harga").value = "";
-            document.getElementById("modal-barang-baru").classList.remove("hidden");
-        }
+        startBtn.addEventListener('click', () => {
+            startScanner();
+        });
 
-        function tutupModal() {
-            document.getElementById("modal-barang-baru").classList.add("hidden");
-            isScanning = true; // Aktifkan kamera kembali
-        }
-
-        async function simpanBarangBaru() {
-            const id = document.getElementById("new-id").value;
-            const nama = document.getElementById("new-nama").value;
-            const kategori = document.getElementById("new-kategori").value;
-            const harga = parseInt(document.getElementById("new-harga").value) || 0;
-            const qty = parseInt(document.getElementById("new-qty").value) || 0;
-
-            if (!nama) { alert("Nama barang wajib diisi!"); return; }
-
-            // Insert ke tabel master_stok Anda
-            const { error } = await supabase
-                .from('master_stok')
-                .insert([{ id, nama, kategori, harga, qty }]);
-
-            if (!error) {
-                document.getElementById("scan-status").innerHTML = `🎉 Berhasil mendaftarkan <b>${nama}</b> ke SIMMarket!`;
-                tutupModal();
-            } else {
-                alert("Gagal menyimpan ke Supabase: " + error.message);
-                isScanning = true;
-            }
-        }
-
-        // 5. MENJALANKAN SCANNER (Mendukung Kamera Belakang HP secara otomatis)
-        const html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
-            fps: 15, 
-            qrbox: { width: 280, height: 150 }, // Ukuran persegi panjang ideal untuk barcode batangan
-            aspectRatio: 1.0 
-        }, false);
-        
-        html5QrcodeScanner.render(onScanSuccess);
+        window.addEventListener('load', () => {
+            startScanner();
+        });
     </script>
 </body>
 </html>
